@@ -59,8 +59,9 @@ app.get('/api/incidents', async (req, res) => {
 app.get('/api/incidents/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
+    const incidentResult = await pool.query(
       `SELECT id, responders_needed, description, victim_count, status, image_url,
+              location,
               ST_Y(location::geometry) AS latitude,
               ST_X(location::geometry) AS longitude,
               reported_at, created_at
@@ -69,11 +70,42 @@ app.get('/api/incidents/:id', async (req, res) => {
       [id]
     );
 
-    if (result.rows.length === 0) {
+    if (incidentResult.rows.length === 0) {
       return res.status(404).json({ error: 'Incident not found' });
     }
 
-    res.json(result.rows[0]);
+    const incident = incidentResult.rows[0];
+    const responders = {};
+
+    if (incident.responders_needed.includes('hospital')) {
+      const r = await pool.query(
+        `SELECT name, ST_Distance(location, $1) AS distance_meters
+         FROM hospitals ORDER BY location <-> $1 LIMIT 1`,
+        [incident.location]
+      );
+      responders.nearest_hospital = r.rows[0] || null;
+    }
+
+    if (incident.responders_needed.includes('police')) {
+      const r = await pool.query(
+        `SELECT name, ST_Distance(location, $1) AS distance_meters
+         FROM police_stations ORDER BY location <-> $1 LIMIT 1`,
+        [incident.location]
+      );
+      responders.nearest_police = r.rows[0] || null;
+    }
+
+    if (incident.responders_needed.includes('fire')) {
+      const r = await pool.query(
+        `SELECT name, ST_Distance(location, $1) AS distance_meters
+         FROM fire_stations ORDER BY location <-> $1 LIMIT 1`,
+        [incident.location]
+      );
+      responders.nearest_fire = r.rows[0] || null;
+    }
+
+    delete incident.location;
+    res.json({ ...incident, nearest_responders: responders });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Something went wrong' });
