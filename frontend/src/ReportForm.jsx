@@ -9,6 +9,7 @@ function ReportForm({ onBack }) {
   const [image, setImage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [submittedIncident, setSubmittedIncident] = useState(null);
 
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -64,7 +65,7 @@ function ReportForm({ onBack }) {
     if (!response.ok) throw new Error('Failed to submit report');
 
     const data = await response.json();
-    alert(`Emergency reported! Incident ID: ${data.id}`);
+    setSubmittedIncident(data);
   } catch (err) {
     setSubmitError(err.message);
   } finally {
@@ -72,6 +73,22 @@ function ReportForm({ onBack }) {
   }
 };
 
+
+   if (submittedIncident) {
+    return (
+      <div className="confirmation-screen">
+        <div className="confirmation-icon">✅</div>
+        <h2>Help is on the way</h2>
+        <p>Incident #{submittedIncident.id} reported successfully.</p>
+        <div className="status-tracker">
+          <span className="status-step active">Reported</span>
+          <span className="status-step">Notified</span>
+          <span className="status-step">Dispatched</span>
+        </div>
+        <button onClick={onBack}>Report Another Emergency</button>
+      </div>
+    );
+  }
   return (
     <div className="report-form">
       <button onClick={onBack}>← Back</button>

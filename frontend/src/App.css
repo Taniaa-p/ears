@@ -34,3 +34,80 @@
 .panic-button:active {
   transform: scale(0.98);
 }
+
+.responder-checkboxes {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin: 20px 0;
+  font-size: 18px;
+}
+
+.responder-checkboxes label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.report-form {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.location-status {
+  font-size: 14px;
+  color: #555;
+}
+
+.error {
+  color: #dc2626;
+  font-weight: 500;
+}
+
+textarea, input[type="number"] {
+  padding: 10px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.confirmation-screen {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.confirmation-icon {
+  font-size: 60px;
+}
+
+.status-tracker {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 24px 0;
+}
+
+.status-step {
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: #e5e5e5;
+  font-size: 14px;
+}
+
+.status-step.active {
+  background: #16a34a;
+  color: white;
+  font-weight: 600;
+}
