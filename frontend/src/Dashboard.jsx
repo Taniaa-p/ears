@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
+import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
 
 const socket = io('http://localhost:5000');
 
@@ -48,10 +49,32 @@ function Dashboard() {
     };
   }, []);
 
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+  });
+
+  const mapCenter = { lat: 13.0827, lng: 80.2707 }; // Chennai center as default
+
   return (
     <div className="dashboard">
       <h2>Responder Dashboard</h2>
       <p>Status: {connected ? '🟢 Connected' : '🔴 Disconnected'}</p>
+
+      {isLoaded && (
+        <GoogleMap
+          mapContainerStyle={{ width: '100%', height: '400px', marginBottom: '20px' }}
+          center={mapCenter}
+          zoom={11}
+        >
+          {incidents.map((inc) => (
+            <Marker
+              key={inc.id}
+              position={{ lat: inc.latitude, lng: inc.longitude }}
+              title={`Incident #${inc.id}: ${inc.description || 'No description'}`}
+            />
+          ))}
+        </GoogleMap>
+      )}
 
       <table>
         <thead>

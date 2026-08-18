@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 function ReportForm({ onBack }) {
+  const navigate = useNavigate();
   const [location, setLocation] = useState(null);
   const [locationError, setLocationError] = useState(null);
   const [responders, setResponders] = useState([]);
@@ -85,13 +87,13 @@ function ReportForm({ onBack }) {
           <span className="status-step">Notified</span>
           <span className="status-step">Dispatched</span>
         </div>
-        <button onClick={onBack}>Report Another Emergency</button>
+        <button onClick={() => navigate('/')}>Report Another Emergency</button>
       </div>
     );
   }
   return (
     <div className="report-form">
-      <button onClick={onBack}>← Back</button>
+      <button onClick={() => navigate('/')}>← Back</button>
       <h2>Report Emergency</h2>
 
       <div className="location-status">
