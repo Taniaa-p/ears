@@ -4,6 +4,13 @@ const http = require('http');
 const { Server } = require('socket.io');
 require('dotenv').config();
 const pool = require('./db');
+const { sendEmail } = require('./notifications');
+
+const RESPONDER_EMAILS = {
+  fire: 'tanugonemad@gmail.com',
+  police: 'tanugonemad@gmail.com',
+  hospital: 'tanugonemad@gmail.com',
+};
 
 const app = express();
 app.use(cors());
@@ -55,6 +62,13 @@ app.post('/api/incidents', async (req, res) => {
     //that's how SQL injection attacks happen
 
     io.emit('new_incident', result.rows[0]);
+
+    for (const dept of result.rows[0].responders_needed) {
+      if (RESPONDER_EMAILS[dept]) {
+        const message = `EARS Emergency Alert\nType: ${dept}\nLocation: ${latitude}, ${longitude}\nVictims: ${victim_count || 'Unknown'}\nDescription: ${description || 'None provided'}`;
+        sendEmail(RESPONDER_EMAILS[dept], `Emergency Alert - ${dept}`, message);
+      }
+    }
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
