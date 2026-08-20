@@ -44,6 +44,21 @@ function ReportForm({ onBack }) {
     );
   };
 
+  const uploadImage = async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'ears_incidents');
+
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'ngdldi6d';
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await response.json();
+    return data.secure_url;
+  };
+
   const handleSubmit = async () => {
     if (responders.length === 0) {
       setSubmitError('Please select at least one responder type');
@@ -63,6 +78,11 @@ function ReportForm({ onBack }) {
     setSubmitError(null);
 
     try {
+      let imageUrl = null;
+      if (image) {
+        imageUrl = await uploadImage(image);
+      }
+
       const response = await fetch('http://localhost:5000/api/incidents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -73,6 +93,7 @@ function ReportForm({ onBack }) {
           latitude: location.latitude,
           longitude: location.longitude,
           victim_details: responders.includes('hospital') ? victimDetails : null,
+          image_url: imageUrl,
         }),
       });
 

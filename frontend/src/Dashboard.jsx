@@ -109,6 +109,7 @@ function Dashboard({ department }) {
             <th>Description</th>
             <th>Status</th>
             {department === 'hospital' && <th>Medical Info</th>}
+            <th>Image</th>
             {department && <th>Actions</th>}
           </tr>
         </thead>
@@ -134,6 +135,11 @@ function Dashboard({ department }) {
                   ) : '—'}
                 </td>
               )}
+              <td>
+                {inc.image_url ? (
+                  <a href={inc.image_url} target="_blank" rel="noopener noreferrer">View Image</a>
+                ) : '—'}
+              </td>
               {department && (
                 <td>
                   <button
