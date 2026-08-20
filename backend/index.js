@@ -28,7 +28,7 @@ app.get('/', (req, res) => {
 
 app.post('/api/incidents', async (req, res) => {
   try {
-    const { responders_needed, description, victim_count, image_url, latitude, longitude } = req.body;
+    const { responders_needed, description, victim_count, image_url, latitude, longitude, victim_details } = req.body;
 
     if (!responders_needed || responders_needed.length === 0) {
       return res.status(400).json({ error: 'At least one responder type is required' });
@@ -36,12 +36,18 @@ app.post('/api/incidents', async (req, res) => {
     if (!latitude || !longitude) {
       return res.status(400).json({ error: 'Location is required' });
     }
+    if (victim_count !== null && victim_count !== undefined && (isNaN(victim_count) || victim_count < 0)) {
+      return res.status(400).json({ error: 'Victim count must be a valid positive number' });
+    }
+
+    const initialStatuses = {};
+    responders_needed.forEach((r) => { initialStatuses[r] = 'pending'; });
 
     const result = await pool.query(
-      `INSERT INTO incidents (responders_needed, description, victim_count, image_url, location)
-       VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($5, $6), 4326)::geography)
-       RETURNING *`,
-      [responders_needed, description, victim_count, image_url, longitude, latitude]
+      `INSERT INTO incidents (responders_needed, description, victim_count, image_url, victim_details, responder_statuses, location)
+       VALUES ($1, $2, $3, $4, $5, $6, ST_SetSRID(ST_MakePoint($7, $8), 4326)::geography)
+       RETURNING *, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude`,
+      [responders_needed, description, victim_count, image_url, victim_details ? JSON.stringify(victim_details) : null, JSON.stringify(initialStatuses), longitude, latitude]
     );
 
     //$1, $2, $3... — these are parameterized query placeholders. 
@@ -60,7 +66,7 @@ app.post('/api/incidents', async (req, res) => {
 app.get('/api/incidents', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, responders_needed, description, victim_count, status, image_url,
+      `SELECT id, responders_needed, description, victim_count, responder_statuses, image_url, victim_details,
               ST_Y(location::geometry) AS latitude,
               ST_X(location::geometry) AS longitude,
               reported_at, created_at
@@ -78,7 +84,7 @@ app.get('/api/incidents/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const incidentResult = await pool.query(
-      `SELECT id, responders_needed, description, victim_count, status, image_url,
+      `SELECT id, responders_needed, description, victim_count, responder_statuses, image_url, victim_details,
               location,
               ST_Y(location::geometry) AS latitude,
               ST_X(location::geometry) AS longitude,
@@ -130,23 +136,40 @@ app.get('/api/incidents/:id', async (req, res) => {
   }
 });
 
-app.patch('/api/incidents/:id/status', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
+const VALID_TRANSITIONS = {
+  pending: ['dispatched'],
+  dispatched: ['resolved'],
+  resolved: [],
+};
 
-    if (!['pending', 'dispatched', 'resolved'].includes(status)) {
+app.patch('/api/incidents/:id/status/:department', async (req, res) => {
+  try {
+    const { id, department } = req.params;
+    const { status: newStatus } = req.body;
+
+    if (!['pending', 'dispatched', 'resolved'].includes(newStatus)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    const result = await pool.query(
-      `UPDATE incidents SET status = $1 WHERE id = $2 RETURNING *`,
-      [status, id]
-    );
+    const current = await pool.query(`SELECT responder_statuses FROM incidents WHERE id = $1`, [id]);
+    if (current.rows.length === 0) return res.status(404).json({ error: 'Incident not found' });
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Incident not found' });
+    const statuses = current.rows[0].responder_statuses;
+    if (!(department in statuses)) {
+      return res.status(400).json({ error: `${department} was not requested for this incident` });
     }
+
+    const currentDeptStatus = statuses[department];
+    if (!VALID_TRANSITIONS[currentDeptStatus].includes(newStatus)) {
+      return res.status(400).json({ error: `Cannot change ${department} status from '${currentDeptStatus}' to '${newStatus}'` });
+    }
+
+    statuses[department] = newStatus;
+
+    const result = await pool.query(
+      `UPDATE incidents SET responder_statuses = $1 WHERE id = $2 RETURNING *, ST_Y(location::geometry) AS latitude, ST_X(location::geometry) AS longitude`,
+      [JSON.stringify(statuses), id]
+    );
 
     io.emit('incident_updated', result.rows[0]);
     res.json(result.rows[0]);

@@ -1,0 +1,1 @@
+ALTER TABLE incidents ADD COLUMN responder_statuses JSONB;

@@ -4,16 +4,27 @@ import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
 
 const socket = io('http://localhost:5000');
 
-function Dashboard() {
+function Dashboard({ department }) {
   const [incidents, setIncidents] = useState([]);
   const [connected, setConnected] = useState(socket.connected);
 
-  const updateStatus = async (id, newStatus) => {
-    await fetch(`http://localhost:5000/api/incidents/${id}/status`, {
+  const updateStatus = async (id, dept, newStatus) => {
+    await fetch(`http://localhost:5000/api/incidents/${id}/status/${dept}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
     });
+  };
+
+  const getOverallStatus = (inc) => {
+    if (department) {
+      return (inc.responder_statuses && inc.responder_statuses[department]) || 'pending';
+    }
+    const statuses = inc.responder_statuses ? Object.values(inc.responder_statuses) : [];
+    if (statuses.length === 0) return 'pending';
+    if (statuses.every(s => s === 'resolved')) return 'resolved';
+    if (statuses.some(s => s === 'pending')) return 'pending';
+    return 'dispatched';
   };
 
   useEffect(() => {
@@ -37,7 +48,7 @@ function Dashboard() {
 
     socket.on('incident_updated', (updated) => {
       setIncidents((prev) =>
-        prev.map((inc) => (inc.id === updated.id ? updated : inc))
+        prev.map((inc) => (inc.id === updated.id ? { ...inc, ...updated } : inc))
       );
     });
 
@@ -55,9 +66,22 @@ function Dashboard() {
 
   const mapCenter = { lat: 13.0827, lng: 80.2707 }; // Chennai center as default
 
+  const filteredIncidents = department
+    ? incidents.filter((inc) => inc.responders_needed.includes(department))
+    : incidents;
+
+  const getMarkerIcon = (status) => {
+    const colors = {
+      pending: 'red',
+      dispatched: 'yellow',
+      resolved: 'green',
+    };
+    return `http://maps.google.com/mapfiles/ms/icons/${colors[status]}-dot.png`;
+  };
+
   return (
     <div className="dashboard">
-      <h2>Responder Dashboard</h2>
+      <h2>{department ? `${department.charAt(0).toUpperCase() + department.slice(1)} Dashboard` : 'Responder Dashboard'}</h2>
       <p>Status: {connected ? '🟢 Connected' : '🔴 Disconnected'}</p>
 
       {isLoaded && (
@@ -66,11 +90,12 @@ function Dashboard() {
           center={mapCenter}
           zoom={11}
         >
-          {incidents.map((inc) => (
+          {filteredIncidents.map((inc) => (
             <Marker
               key={inc.id}
               position={{ lat: inc.latitude, lng: inc.longitude }}
               title={`Incident #${inc.id}: ${inc.description || 'No description'}`}
+              icon={getMarkerIcon(getOverallStatus(inc))}
             />
           ))}
         </GoogleMap>
@@ -83,20 +108,48 @@ function Dashboard() {
             <th>Responders</th>
             <th>Description</th>
             <th>Status</th>
-            <th>Actions</th>
+            {department === 'hospital' && <th>Medical Info</th>}
+            {department && <th>Actions</th>}
           </tr>
         </thead>
         <tbody>
-          {incidents.map((inc) => (
+          {filteredIncidents.map((inc) => (
             <tr key={inc.id}>
               <td>{inc.id}</td>
               <td>{inc.responders_needed.join(', ')}</td>
               <td>{inc.description || '—'}</td>
-              <td>{inc.status}</td>
               <td>
-                <button onClick={() => updateStatus(inc.id, 'dispatched')}>Dispatch</button>
-                <button onClick={() => updateStatus(inc.id, 'resolved')}>Resolve</button>
+                {department
+                  ? (inc.responder_statuses && inc.responder_statuses[department])
+                  : Object.entries(inc.responder_statuses || {}).map(([dept, stat]) => `${dept}: ${stat}`).join(', ')}
               </td>
+              {department === 'hospital' && (
+                <td>
+                  {inc.victim_details ? (
+                    <span>
+                      {inc.victim_details.bloodGroup && `Blood: ${inc.victim_details.bloodGroup}`}
+                      {inc.victim_details.allergies && ` | Allergies: ${inc.victim_details.allergies}`}
+                      {inc.victim_details.conscious === false && ' | Unconscious'}
+                    </span>
+                  ) : '—'}
+                </td>
+              )}
+              {department && (
+                <td>
+                  <button
+                    onClick={() => updateStatus(inc.id, department, 'dispatched')}
+                    disabled={(inc.responder_statuses && inc.responder_statuses[department]) !== 'pending'}
+                  >
+                    Dispatch
+                  </button>
+                  <button
+                    onClick={() => updateStatus(inc.id, department, 'resolved')}
+                    disabled={(inc.responder_statuses && inc.responder_statuses[department]) !== 'dispatched'}
+                  >
+                    Resolve
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
